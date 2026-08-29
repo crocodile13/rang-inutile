@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Appariement — ce que ton rang ouvre</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+
+<div id="bootLoading" class="boot-loading">
+  <div class="boot-spinner" aria-hidden="true"></div>
+  <p id="bootLoadingText">Chargement des données…</p>
+</div>
+
+<a class="skip-link" href="#main-content">Aller au contenu</a>
+
+<header class="bar">
+  <div class="bar-id">
+    <span class="bar-mark" aria-hidden="true">R</span>
+    <div>
+      <h1>Appariement</h1>
+      <p class="bar-sub">Ce qu'un rang ouvre, tour par tour</p>
+    </div>
+  </div>
+  <div class="rank-field">
+    <label for="rank">Mon rang</label>
+    <input id="rank" type="number" min="1" step="1" inputmode="numeric" placeholder="ex. 2181" autocomplete="off">
+    <span class="rank-hint" id="rankHint">sur —</span>
+  </div>
+</header>
+
+<div class="banner error" id="errorBanner" role="alert" hidden></div>
+
+<div class="shell">
+
+  <aside class="filters" id="filters">
+    <div class="filter-block">
+      <div class="filter-head">
+        <h2>Tour</h2>
+      </div>
+      <select id="round" class="select"></select>
+      <p class="note" id="roundNote"></p>
+    </div>
+
+    <div class="filter-block">
+      <div class="filter-head">
+        <h2>Villes</h2>
+        <div class="mini-actions">
+          <button type="button" data-all="subdivision">tout</button>
+          <button type="button" data-none="subdivision">rien</button>
+        </div>
+      </div>
+      <div class="dropdown" id="dropdown-subdivision">
+        <button type="button" class="dropdown-trigger" id="trigger-subdivision" aria-haspopup="true" aria-expanded="false">
+          <span id="summary-subdivision">Toutes les villes</span>
+          <span class="dropdown-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="dropdown-panel" id="panel-subdivision">
+          <input class="search" type="search" data-search="subdivision" placeholder="filtrer…" autocomplete="off">
+          <div class="checklist" id="list-subdivision"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-block">
+      <div class="filter-head">
+        <h2>Spécialités</h2>
+        <div class="mini-actions">
+          <button type="button" data-all="specialite">tout</button>
+          <button type="button" data-none="specialite">rien</button>
+        </div>
+      </div>
+      <div class="dropdown" id="dropdown-specialite">
+        <button type="button" class="dropdown-trigger" id="trigger-specialite" aria-haspopup="true" aria-expanded="false">
+          <span id="summary-specialite">Toutes les spécialités</span>
+          <span class="dropdown-caret" aria-hidden="true">▾</span>
+        </button>
+        <div class="dropdown-panel" id="panel-specialite">
+          <input class="search" type="search" data-search="specialite" placeholder="filtrer…" autocomplete="off">
+          <div class="checklist tall" id="list-specialite"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="filter-block">
+      <div class="filter-head"><h2>Marge « limite »</h2></div>
+      <label class="toggle small">
+        <input type="checkbox" id="autoMargin">
+        Marge statistique (auto)
+      </label>
+
+      <div id="manualMarginRow" class="margin-row">
+        <input id="margin" type="range" min="0" max="1000" step="25" value="150">
+        <output id="marginOut">150</output>
+      </div>
+      <p class="note" id="manualMarginNote">Un poste passe en <em>limite</em> si ton rang dépasse le dernier rang pris de moins que cette marge.</p>
+
+      <div id="autoMarginRow" class="margin-row" hidden>
+        <input id="marginK" type="range" min="0" max="3" step="0.1" value="1">
+        <output id="marginKOut">1,0×</output>
+      </div>
+      <p class="note" id="autoMarginNote" hidden>
+        Marge = sensibilité × écart-type des <em>variations tour-à-tour</em> du dernier rang pris par ce poste précis (pas l'écart-type des niveaux bruts, qui confondrait avec la tendance générale de la simulation).
+        Un poste dont le seuil bouge beaucoup d'un tour au suivant reçoit une marge plus large ; un poste stable, une marge plus fine.
+        Repli sur la marge manuelle si le poste a moins de 3 tours d'historique.
+      </p>
+    </div>
+
+    <div class="filter-block" id="wishlistBlock">
+      <div class="filter-head">
+        <h2>Mes positionnements (groupes)</h2>
+      </div>
+
+      <div id="wishlistView" hidden>
+        <ol class="wishlist-list" id="wishlistList"></ol>
+        <p class="note">Ton classement par groupe (onglet « Mes positionnements » sur EVEN) remplace « Mon rang » pour les postes du groupe concerné — un <span class="pos-flag">•</span> dans le tableau signale une ligne où c'est le cas.</p>
+        <div class="wishlist-actions">
+          <button type="button" id="wishlistEdit" class="btn-ghost">modifier</button>
+          <button type="button" id="wishlistClear" class="btn-ghost">effacer</button>
+        </div>
+      </div>
+
+      <div id="wishlistPrompt">
+        <p class="note">Ton classement diffère selon le groupe de spécialités (l'algorithme d'appariement calcule un classement par groupe, pas un seul rang global — voir l'onglet « Mes positionnements » sur EVEN). Renseigne-le ici pour que chaque poste utilise le bon classement automatiquement.</p>
+        <button type="button" id="wishlistOpen" class="btn">Renseigner mes positionnements</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main" id="main-content">
+    <nav class="tabs" role="tablist" aria-label="Vues">
+      <button class="tab is-on" data-view="table" role="tab" aria-selected="true" aria-controls="view-table" id="tab-table">Postes</button>
+      <button class="tab" data-view="chart" role="tab" aria-selected="false" aria-controls="view-chart" id="tab-chart">Évolution</button>
+    </nav>
+
+    <section id="view-table" class="view" role="tabpanel" aria-labelledby="tab-table">
+      <div class="tally" id="tally" aria-live="polite"></div>
+      <div class="table-tools">
+        <label class="toggle"><input type="checkbox" id="onlyOpen"> Ne montrer que ce qui est ouvert</label>
+        <span class="count" id="count" aria-live="polite"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="posts">
+          <thead>
+            <tr>
+              <th data-sort="specialite">Spécialité</th>
+              <th data-sort="subdivision">Ville</th>
+              <th class="num" data-sort="places">Pl.</th>
+              <th class="num" data-sort="restantes">Rest.</th>
+              <th class="num" data-sort="rang_min">1<sup>er</sup></th>
+              <th class="num" data-sort="rang_max">Dernier</th>
+              <th class="num" data-sort="marge">Marge</th>
+              <th class="ruler-col" data-sort="rang_max">Fenêtre de rangs</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="empty" id="tableEmpty" hidden></p>
+    </section>
+
+    <section id="view-chart" class="view" role="tabpanel" aria-labelledby="tab-chart" hidden>
+      <div class="chart-tools">
+        <label>Mesure
+          <select id="metric" class="select">
+            <option value="classement">Classement (médiane, quartiles, min–max)</option>
+            <option value="accessibles">Postes accessibles (selon mon rang)</option>
+            <option value="places_accessibles">Places accessibles (selon mon rang)</option>
+            <option value="restantes">Places restantes</option>
+            <option value="postes">Postes au total</option>
+          </select>
+        </label>
+        <label>Une courbe par
+          <select id="group" class="select">
+            <option value="none">sélection entière</option>
+            <option value="poste">poste (spécialité × ville)</option>
+            <option value="subdivision">ville</option>
+            <option value="specialite">spécialité</option>
+            <option value="gds">groupe</option>
+          </select>
+        </label>
+      </div>
+      <p class="note" id="groupHint" hidden></p>
+      <div id="chart" class="chart"></div>
+      <p class="note" id="statsLegend" hidden>Zone = écart interquartile (Q1–Q3) · trait plein = médiane · barres = min–max des postes du groupe.</p>
+      <div id="legend" class="legend"></div>
+      <p class="note" id="chartTruncNote" hidden></p>
+      <p class="empty" id="chartEmpty" hidden></p>
+    </section>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <a href="mailto:externe.aigri@lanpinet.fr">externe.aigri@lanpinet.fr</a>
+  <span aria-hidden="true"> · </span>
+  <a href="https://polyformproject.org/licenses/noncommercial/1.0.0" target="_blank" rel="noopener">Licence : PolyForm Noncommercial 1.0.0</a>
+</footer>
+
+<dialog id="wishlistDialog" class="wishlist-dialog">
+  <h2 id="wishlistDialogTitle">Mes positionnements</h2>
+
+  <div id="wishlistStepPaste">
+    <p class="note">Colle ici l'onglet « Mes positionnements » copié depuis EVEN (groupe + ton classement pour ce groupe) — n'importe quel format brut, il sera nettoyé à l'étape suivante et tu pourras corriger chaque ligne à la main.</p>
+    <textarea id="wishlistPasteArea" class="textarea" rows="9" placeholder="1  Chirurgie 1  8454&#10;2  Chirurgie 2  8413&#10;…"></textarea>
+    <p class="note error-note" id="wishlistParseError" hidden></p>
+    <div class="wishlist-dialog-actions">
+      <button type="button" id="wishlistAnalyze" class="btn">Analyser</button>
+      <button type="button" id="wishlistManual" class="btn-ghost">Remplir à la main</button>
+      <button type="button" id="wishlistCancel1" class="btn-ghost">Annuler</button>
+    </div>
+  </div>
+
+  <div id="wishlistStepEdit" hidden>
+    <p class="note">Vérifie et corrige chaque ligne si besoin, puis valide. « Classement » = ton classement dans ce groupe (pas un ordre de préférence).</p>
+    <div class="wishlist-edit-head">
+      <span>#</span><span>Groupe</span><span>Classement</span><span></span>
+    </div>
+    <div class="wishlist-edit-list" id="wishlistEditList"></div>
+    <button type="button" id="wishlistAddRow" class="btn-ghost small">+ ajouter une ligne</button>
+    <div class="wishlist-dialog-actions">
+      <button type="button" id="wishlistBack" class="btn-ghost">‹ recommencer</button>
+      <button type="button" id="wishlistConfirm" class="btn">Valider</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="static/app.js"></script>
+</body>
+</html>

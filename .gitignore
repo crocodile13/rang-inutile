@@ -1,0 +1,7 @@
+.cngrc
+.venv/
+__pycache__/
+data/*.csv
+data/*.json
+*.log
+site/
