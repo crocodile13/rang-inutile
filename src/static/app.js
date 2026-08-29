@@ -1048,6 +1048,10 @@ async function boot() {
 
   renderPosts();
   $("#bootLoading").hidden = true;
+
+  // Rien en localStorage : invite tout de suite à renseigner les positionnements plutôt
+  // que de laisser le bouton discret dans la sidebar passer inaperçu.
+  if (!state.wishlist.length) openWishlistDialog();
 }
 
 boot();
