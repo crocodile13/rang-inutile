@@ -124,7 +124,6 @@ th[data-sort]:focus-visible,
   gap: 18px;
   max-height: calc(100vh - 36px);
   overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 16px;
   background: var(--panel);
   border: 1px solid var(--rule);
@@ -163,7 +162,6 @@ th[data-sort]:focus-visible,
 .checklist {
   max-height: 220px;
   overflow-y: auto;
-  overscroll-behavior: contain;
   border: 1px solid var(--rule-soft);
   border-radius: 4px;
   background: #fff;
@@ -252,7 +250,6 @@ th[data-sort]:focus-visible,
   font-size: 13px;
   max-height: 220px;
   overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .wishlist-list li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
 .wishlist-code { color: var(--muted); font-size: 11px; margin-left: 4px; }
@@ -321,7 +318,6 @@ dialog#wishlistDialog .note { margin-bottom: 10px; }
   gap: 6px;
   max-height: 42vh;
   overflow-y: auto;
-  overscroll-behavior: contain;
   padding-right: 2px;
 }
 .wishlist-edit-row input {
@@ -450,7 +446,7 @@ dialog#wishlistDialog .note { margin-bottom: 10px; }
 
 /* ---------- table ---------- */
 
-.table-wrap { max-height: 70vh; overflow: auto; overscroll-behavior: contain; }
+.table-wrap { max-height: 70vh; overflow: auto; }
 
 table { width: 100%; border-collapse: collapse; }
 
