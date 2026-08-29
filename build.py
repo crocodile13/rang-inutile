@@ -139,11 +139,11 @@ def build(data_dir: str, out_dir: str) -> None:
     with open(os.path.join(out_dir, "data.json"), "w", encoding="utf-8") as f:
         json.dump(bulk, f, ensure_ascii=False, separators=(",", ":"))
 
-    shutil.copy("templates/index.html", os.path.join(out_dir, "index.html"))
+    shutil.copy("src/index.html", os.path.join(out_dir, "index.html"))
     dest_static = os.path.join(out_dir, "static")
     if os.path.isdir(dest_static):
         shutil.rmtree(dest_static)
-    shutil.copytree("static", dest_static)
+    shutil.copytree("src/static", dest_static)
 
     n_posts = len(bulk["posts"])
     print(f"site généré dans {out_dir}/ — {len(rounds)} tour(s) visible(s), {n_posts} postes.")

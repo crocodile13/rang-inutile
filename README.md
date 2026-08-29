@@ -78,6 +78,25 @@ des fichiers statiques, n'importe quel hébergeur de fichiers convient. Si tu ve
 protéger l'accès par mot de passe, ça se configure côté hébergeur (ex. protection
 par mot de passe Netlify, Cloudflare Access), pas dans le code.
 
+## 3. Déploiement automatique (GitHub Pages)
+
+`deploy.sh` enchaîne fetch → build → push vers la branche `gh-pages` (que GitHub Pages
+sert directement). Le domaine personnalisé vient de `site.cname` (un domaine par ligne
+suffit, copié en `CNAME` dans le site généré). Ne fait ni commit ni push si rien n'a
+changé depuis le dernier déploiement.
+
+```bash
+./deploy.sh              # fetch + build + déploie
+./deploy.sh -r 10        # options transmises à fetch_appariement.sh
+SKIP_FETCH=1 ./deploy.sh # rebuild + déploie sans relancer le fetch
+```
+
+Exemple crontab pour tout automatiser :
+
+```cron
+0 9,15 * * * cd /chemin/vers/appariement-viewer && ./deploy.sh >> deploy.log 2>&1
+```
+
 ### Vue « Postes »
 
 Tu tapes ton rang, tu coches les villes et les spécialités, et chaque poste du tour
