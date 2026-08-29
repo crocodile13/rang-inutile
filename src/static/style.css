@@ -162,6 +162,7 @@ th[data-sort]:focus-visible,
 .checklist {
   max-height: 220px;
   overflow-y: auto;
+  overscroll-behavior: contain; /* popover flottant : empêche le scroll de "fuir" vers la sidebar */
   border: 1px solid var(--rule-soft);
   border-radius: 4px;
   background: #fff;
@@ -318,6 +319,7 @@ dialog#wishlistDialog .note { margin-bottom: 10px; }
   gap: 6px;
   max-height: 42vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 2px;
 }
 .wishlist-edit-row input {
