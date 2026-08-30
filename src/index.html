@@ -60,6 +60,10 @@
         <div class="dropdown-panel" id="panel-subdivision">
           <input class="search" type="search" data-search="subdivision" placeholder="filtrer…" autocomplete="off">
           <div class="checklist" id="list-subdivision"></div>
+          <label class="toggle small">
+            <input type="checkbox" id="showAllVilles" data-show-all="subdivision">
+            Afficher aussi les villes sans poste dans les spécialités cochées
+          </label>
         </div>
       </div>
     </div>
@@ -80,6 +84,10 @@
         <div class="dropdown-panel" id="panel-specialite">
           <input class="search" type="search" data-search="specialite" placeholder="filtrer…" autocomplete="off">
           <div class="checklist tall" id="list-specialite"></div>
+          <label class="toggle small">
+            <input type="checkbox" id="showAllSpecialites" data-show-all="specialite">
+            Afficher aussi les spécialités sans poste dans les villes cochées
+          </label>
         </div>
       </div>
     </div>
@@ -137,8 +145,8 @@
 
     <section id="view-table" class="view" role="tabpanel" aria-labelledby="tab-table">
       <div class="tally" id="tally" aria-live="polite"></div>
+      <p class="note" id="tallyHint">Clique un compteur pour filtrer le tableau sur ce statut (plusieurs à la fois possible).</p>
       <div class="table-tools">
-        <label class="toggle"><input type="checkbox" id="onlyOpen"> Ne montrer que ce qui est ouvert</label>
         <span class="count" id="count" aria-live="polite"></span>
       </div>
       <div class="table-wrap">

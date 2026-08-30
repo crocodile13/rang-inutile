@@ -45,10 +45,24 @@ cp -r site/. "$WORKTREE_DIR/"
 cd "$WORKTREE_DIR"
 git add -A
 if git diff --cached --quiet; then
-  echo "rien de nouveau à déployer" >&2
+  echo "rien de nouveau à committer" >&2
 else
   git -c user.name="deploy-bot" -c user.email="deploy@localhost" \
     commit -q -m "Déploiement automatique — $(date -u '+%Y-%m-%d %H:%M UTC')"
-  git push -q "$REMOTE" "$GH_PAGES_BRANCH"
+fi
+
+# Pousse indépendamment du commit ci-dessus : un run précédent a pu committer localement
+# puis échouer au push (ex. rejet non-fast-forward) — dans ce cas il n'y a "rien de nouveau"
+# à committer ici, mais il reste bien quelque chose à pousser. Comparer aux deux à la fois
+# évite de laisser la branche distante à la traîne en silence.
+LOCAL_HEAD="$(git rev-parse HEAD)"
+REMOTE_HEAD="$(git rev-parse "${REMOTE}/${GH_PAGES_BRANCH}" 2>/dev/null || true)"
+if [[ "$LOCAL_HEAD" == "$REMOTE_HEAD" ]]; then
+  echo "rien de nouveau à déployer" >&2
+else
+  # --force assumé : cette branche ne contient QUE le site généré, régénéré à chaque run —
+  # rien d'irremplaçable à perdre, et ça évite qu'un run cron reste bloqué indéfiniment si
+  # le distant a divergé pour une raison quelconque (ex. modifié depuis l'UI/API GitHub).
+  git push -qf "$REMOTE" "HEAD:${GH_PAGES_BRANCH}"
   echo "déployé sur ${GH_PAGES_BRANCH}" >&2
 fi

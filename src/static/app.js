@@ -13,7 +13,9 @@ const state = {
   marginK: 1,
   subdivision: new Set(),
   specialite: new Set(),
-  onlyOpen: false,
+  statusFilter: new Set(),
+  showAllVilles: false,
+  showAllSpecialites: false,
   metric: "classement",
   group: "none",
   sort: { key: "rang_max", dir: -1 },
@@ -27,6 +29,8 @@ let byRound = new Map();
 let rankHistory = new Map();
 let lastPosts = [];
 let lastCeiling = 0;
+let villesBySpecialite = new Map();
+let specialitesByVille = new Map();
 
 const $ = (sel) => document.querySelector(sel);
 const fmt = (n) => (n === null || n === undefined ? "—" : n.toLocaleString("fr-FR"));
@@ -46,6 +50,7 @@ function save() {
         subdivision: [...state.subdivision],
         specialite: [...state.specialite],
         hidden: [...state.hidden],
+        statusFilter: [...state.statusFilter],
       })
     );
   } catch (e) {
@@ -60,6 +65,7 @@ function restore() {
       subdivision: new Set(raw.subdivision || []),
       specialite: new Set(raw.specialite || []),
       hidden: new Set(raw.hidden || []),
+      statusFilter: new Set(raw.statusFilter || []),
       sort: raw.sort || state.sort,
     });
   } catch (e) {
@@ -331,6 +337,7 @@ function buildChecklist(kind, values) {
     input.addEventListener("change", () => {
       input.checked ? state[kind].add(value) : state[kind].delete(value);
       updateFilterSummary(kind);
+      updateChecklistVisibility(otherKind(kind));
       refresh();
     });
     const span = document.createElement("span");
@@ -338,6 +345,33 @@ function buildChecklist(kind, values) {
     label.append(input, span);
     box.append(label);
   }
+}
+
+function otherKind(kind) {
+  return kind === "subdivision" ? "specialite" : "subdivision";
+}
+
+function isRelevant(kind, value) {
+  const other = otherKind(kind);
+  const showAll = kind === "subdivision" ? state.showAllVilles : state.showAllSpecialites;
+  if (showAll || state[other].size === 0) return true;
+  const map = kind === "subdivision" ? villesBySpecialite : specialitesByVille;
+  for (const sel of state[other]) {
+    if (map.get(sel)?.has(value)) return true;
+  }
+  return false;
+}
+
+function updateChecklistVisibility(kind) {
+  const input = $(`[data-search="${kind}"]`);
+  const needle = (input?.value || "").trim().toLowerCase();
+  $(`#list-${kind}`)
+    .querySelectorAll("label")
+    .forEach((l) => {
+      const value = l.textContent.trim();
+      const matchesSearch = !needle || l.dataset.value.includes(needle);
+      l.hidden = !matchesSearch || !isRelevant(kind, value);
+    });
 }
 
 function updateFilterSummary(kind) {
@@ -356,6 +390,7 @@ function wireFilterButtons() {
       visibleValues(kind).forEach((v) => state[kind].add(v));
       syncChecks(kind);
       updateFilterSummary(kind);
+      updateChecklistVisibility(otherKind(kind));
       refresh();
     })
   );
@@ -365,18 +400,20 @@ function wireFilterButtons() {
       visibleValues(kind).forEach((v) => state[kind].delete(v));
       syncChecks(kind);
       updateFilterSummary(kind);
+      updateChecklistVisibility(otherKind(kind));
       refresh();
     })
   );
   document.querySelectorAll("[data-search]").forEach((input) =>
-    input.addEventListener("input", () => {
-      const kind = input.dataset.search;
-      const needle = input.value.trim().toLowerCase();
-      $(`#list-${kind}`)
-        .querySelectorAll("label")
-        .forEach((l) => {
-          l.hidden = Boolean(needle) && !l.dataset.value.includes(needle);
-        });
+    input.addEventListener("input", () => updateChecklistVisibility(input.dataset.search))
+  );
+  document.querySelectorAll("[data-show-all]").forEach((cb) =>
+    cb.addEventListener("change", () => {
+      const kind = cb.dataset.showAll;
+      if (kind === "subdivision") state.showAllVilles = cb.checked;
+      else state.showAllSpecialites = cb.checked;
+      save();
+      updateChecklistVisibility(kind);
     })
   );
 }
@@ -647,8 +684,20 @@ function renderPosts() {
   };
   $("#tally").innerHTML = Object.entries(data.summary)
     .filter(([k, v]) => v > 0 && (state.rank || state.wishlist.length || k === "libre" || k === "pourvu"))
-    .map(([k, v]) => `<div class="chip" data-k="${k}"><b>${fmt(v)}</b><span>${labels[k]}</span></div>`)
+    .map(([k, v]) => {
+      const on = state.statusFilter.has(k);
+      return `<button type="button" class="chip${on ? " chip-on" : ""}" data-k="${k}" aria-pressed="${on}">
+        <b>${fmt(v)}</b><span>${labels[k]}</span></button>`;
+    })
     .join("");
+  $("#tally").querySelectorAll(".chip").forEach((chip) =>
+    chip.addEventListener("click", () => {
+      const k = chip.dataset.k;
+      state.statusFilter.has(k) ? state.statusFilter.delete(k) : state.statusFilter.add(k);
+      save();
+      renderPosts();
+    })
+  );
 
   lastPosts = data.posts;
   lastCeiling = data.rank_ceiling;
@@ -656,8 +705,8 @@ function renderPosts() {
 }
 
 function renderTable(ceiling) {
-  const rows = state.onlyOpen
-    ? lastPosts.filter((p) => p.status === "libre" || p.status === "accessible")
+  const rows = state.statusFilter.size
+    ? lastPosts.filter((p) => state.statusFilter.has(p.status))
     : lastPosts;
 
   const { key, dir } = state.sort;
@@ -944,6 +993,23 @@ function indexData(bulk) {
     if (byRound.has(post.round)) byRound.get(post.round).push(post);
   }
   rankHistory = buildRankHistory(meta.rounds);
+
+  // Pour filtrer les listes "villes"/"spécialités" l'une par l'autre : ne montrer une ville
+  // que si elle a au moins un poste dans une des spécialités cochées (et réciproquement) —
+  // "il n'existe pas le poste", pas juste "il n'y a personne dessus en ce moment".
+  villesBySpecialite = new Map();
+  specialitesByVille = new Map();
+  for (const post of ALL_POSTS) {
+    if (!post.specialite || !post.subdivision) continue;
+    // places === 0 sur toutes les lignes d'une combinaison = poste fantôme (jamais aucune
+    // capacité ouverte), pas juste "personne dessus en ce moment" (restantes === 0 avec
+    // places > 0, ça, ça reste un vrai poste). On ne compte comme "existant" que le premier cas exclu.
+    if (post.places <= 0) continue;
+    if (!villesBySpecialite.has(post.specialite)) villesBySpecialite.set(post.specialite, new Set());
+    villesBySpecialite.get(post.specialite).add(post.subdivision);
+    if (!specialitesByVille.has(post.subdivision)) specialitesByVille.set(post.subdivision, new Set());
+    specialitesByVille.get(post.subdivision).add(post.specialite);
+  }
 }
 
 async function boot() {
@@ -976,6 +1042,10 @@ async function boot() {
   updateFilterSummary("specialite");
   wireFilterButtons();
   wireDropdowns();
+  $("#showAllVilles").checked = state.showAllVilles;
+  $("#showAllSpecialites").checked = state.showAllSpecialites;
+  updateChecklistVisibility("subdivision");
+  updateChecklistVisibility("specialite");
 
   $("#rank").value = state.rank ?? "";
   $("#margin").value = state.margin;
@@ -986,7 +1056,6 @@ async function boot() {
   wireMargin();
   renderWishlist();
   wireWishlist();
-  $("#onlyOpen").checked = state.onlyOpen;
   $("#metric").value = state.metric;
   $("#group").value = state.group;
   updateGroupHint();
@@ -1001,11 +1070,6 @@ async function boot() {
     state.margin = Number(e.target.value);
     $("#marginOut").value = state.margin;
     refresh();
-  });
-  $("#onlyOpen").addEventListener("change", (e) => {
-    state.onlyOpen = e.target.checked;
-    save();
-    renderTable(lastCeiling);
   });
   $("#metric").addEventListener("change", (e) => { state.metric = e.target.value; refresh(); });
   $("#group").addEventListener("change", (e) => {
