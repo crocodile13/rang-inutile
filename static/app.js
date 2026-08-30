@@ -263,7 +263,7 @@ function computePosts(round) {
 }
 
 const METRICS = {
-  classement: "Classement (dernier admis)",
+  classement: "Classement des admis",
   accessibles: "Postes accessibles",
   places_accessibles: "Places accessibles",
   restantes: "Places restantes",
@@ -299,8 +299,12 @@ function computeEvolution(metric, groupBy) {
       if (metric === "accessibles") return { value: open.length };
       return { value: open.reduce((s, p) => s + (p.restantes > 0 ? p.restantes : p.places), 0) };
     }
-    const limits = posts.filter((p) => p.rang_max !== null).map((p) => p.rang_max);
-    const stats = rankStats(limits);
+    // Population = le rang de CHAQUE candidat admis sur les postes du groupe ce tour-là (un
+    // poste a en général plusieurs places, donc plusieurs admis à des rangs différents) — pas
+    // le dernier rang pris de chaque poste comparé entre postes. Avec un seul poste sélectionné,
+    // ça reste une vraie distribution dès qu'il a plus d'un admis.
+    const ranks = posts.flatMap((p) => p.rangs || []);
+    const stats = rankStats(ranks);
     if (!stats) return null;
     return { value: stats.median, stats };
   }
@@ -783,14 +787,7 @@ const PALETTE = [
 
 function updateGroupHint() {
   const hint = $("#groupHint");
-  const singlePoste = state.subdivision.size === 1 && state.specialite.size === 1;
-  if (state.metric === "classement" && singlePoste) {
-    // Avec une seule ville + une seule spécialité, il n'existe qu'un seul poste : une valeur
-    // unique par tour, donc médiane = Q1 = Q3 = min = max — pas une bande qui a disparu, juste
-    // rien à comparer. Sans ce message, la ligne plate ressemble à un graphique cassé.
-    hint.hidden = false;
-    hint.textContent = "Une seule ville et une seule spécialité cochées : un seul poste, donc une valeur unique par tour — pas de médiane/quartiles/min-max à calculer (rien à comparer). Coche plusieurs villes ou spécialités pour voir la dispersion.";
-  } else if (state.group === "poste") {
+  if (state.group === "poste") {
     hint.hidden = false;
     hint.textContent = "Coche des spécialités et des villes dans le panneau de gauche : chaque combinaison cochée devient sa propre courbe (ex. Médecine générale + APHM, Toulouse → 2 courbes).";
   } else if (state.group === "gds" && state.wishlist.length) {
@@ -823,9 +820,18 @@ function drawChart(data) {
   }
 
   const hasStats = data.metric === "classement";
-  $("#statsLegend").hidden = !(
-    hasStats && shown.some((s) => s.points.some((p) => p.stats && p.stats.min !== p.stats.max))
-  );
+  const hasSpread = shown.some((s) => s.points.some((p) => p.stats && p.stats.min !== p.stats.max));
+  $("#statsLegend").hidden = !(hasStats && hasSpread);
+
+  const sampleNote = $("#chartSampleNote");
+  if (sampleNote) {
+    const hasAnyPoint = shown.some((s) => s.points.some((p) => p.value !== null));
+    sampleNote.hidden = !(hasStats && hasAnyPoint && !hasSpread);
+    if (!sampleNote.hidden) {
+      sampleNote.textContent =
+        "Aucune dispersion à afficher ici : sur les tours tracés, les postes de cette sélection n'ont jamais eu plus d'un candidat admis en même temps — pas assez de monde pour calculer une médiane/quartiles/min-max. Coche plus de villes ou de spécialités pour élargir l'échantillon.";
+    }
+  }
 
   if (!data.rounds.length || !shown.length) {
     host.innerHTML = "";
