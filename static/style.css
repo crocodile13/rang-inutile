@@ -424,7 +424,12 @@ dialog#wishlistDialog .note { margin-bottom: 10px; }
   border: 1px solid var(--rule-soft);
   border-left: 4px solid var(--st);
   border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
 }
+.chip:hover { background: var(--panel-2); }
+.chip.chip-on { background: var(--st); border-color: var(--st); }
+.chip.chip-on b, .chip.chip-on span { color: #fff; }
 .chip b { font-size: 20px; font-variant-numeric: tabular-nums; color: var(--st); }
 .chip span { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
