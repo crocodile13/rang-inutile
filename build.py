@@ -100,8 +100,10 @@ def load_dir(data_dir: str) -> dict[int, list[Post]]:
 
 
 def build_bulk(rounds: dict[int, list[Post]]) -> dict:
-    """Même forme que l'ancien /api/bulk : un bloc JSON unique, sans la liste brute des rangs
-    individuels (seul le compte `nb_rangs` sert côté client)."""
+    """Même forme que l'ancien /api/bulk. La liste `rangs` (un rang par candidat admis sur ce
+    poste précis) est incluse : un poste a en général plusieurs places, donc plusieurs admis —
+    c'est cette population-là qui sert de base à la médiane/quartiles/min-max du graphique
+    Évolution, pas une comparaison entre postes différents."""
     posts = [
         {
             "round": post.round,
@@ -114,6 +116,7 @@ def build_bulk(rounds: dict[int, list[Post]]) -> dict:
             "rang_min": post.rang_min,
             "rang_max": post.rang_max,
             "nb_rangs": len(post.rangs),
+            "rangs": post.rangs,
         }
         for r in sorted(rounds)
         for post in rounds[r]
