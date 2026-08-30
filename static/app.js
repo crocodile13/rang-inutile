@@ -141,7 +141,11 @@ function matchesFilters(post, subdivisions, specialites, gds) {
 }
 
 function posteKey(post) {
-  return post.specialite + "" + post.subdivision;
+  // Séparateur explicite (imprimable) entre spécialité et ville : sans lui, deux couples
+  // (spécialité, ville) différents pourraient produire la même clé par concaténation
+  // (ex. "Chirurgie A"+"BC" == "Chirurgie AB"+"C"), mélangeant silencieusement leurs
+  // historiques de rang dans la marge statistique.
+  return post.specialite + "\u241F" + post.subdivision;
 }
 
 function median(sortedArr) {
