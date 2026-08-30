@@ -6,7 +6,6 @@
 
 const STORE = "appariement.state.v1";
 const state = {
-  rank: null,
   round: null,
   margin: 150,
   autoMargin: false,
@@ -199,10 +198,11 @@ function positionnementFor(gds) {
 }
 
 function effectiveRank(post) {
-  // Le classement par groupe (s'il est renseigné) prime sur le rang global "Mon rang" —
-  // c'est la valeur que l'algorithme utilise réellement pour ce groupe de spécialités.
+  // Pas de rang global de repli : le classement n'existe que par groupe de spécialités
+  // (voir positionnementFor) — un poste dont le groupe n'a pas été renseigné reste "pourvu"
+  // faute de valeur à comparer, plutôt que de comparer à un chiffre qui n'a pas de sens ici.
   const p = positionnementFor(post.gds);
-  return p !== null && Number.isFinite(p) ? p : state.rank;
+  return p !== null && Number.isFinite(p) ? p : null;
 }
 
 function effectiveMargin(post) {
@@ -224,7 +224,6 @@ function computePosts(round) {
   for (const post of posts) {
     if (!matchesFilters(post, state.subdivision, state.specialite, EMPTY_SET)) continue;
     const rank = effectiveRank(post);
-    const viaPositionnement = rank !== null && rank !== state.rank;
     const margin = effectiveMargin(post);
     const status = statusOf(post, rank, margin);
     summary[status]++;
@@ -244,7 +243,7 @@ function computePosts(round) {
       status,
       marge,
       rank_used: rank,
-      via_positionnement: viaPositionnement,
+      via_positionnement: rank !== null,
       margin_used: state.autoMargin && (status === "limite" || status === "pris") ? Math.round(margin) : null,
     });
   }
@@ -591,7 +590,8 @@ function wireWishlist() {
     save();
     renderWishlist();
     updateGroupHint();
-    if (state.group === "gds" && !$("#view-chart").hidden) renderChart();
+    if ($("#view-table").hidden) renderChart();
+    else renderPosts();
   });
 
   $("#wishlistAnalyze").addEventListener("click", () => {
@@ -646,7 +646,8 @@ function wireWishlist() {
     renderWishlist();
     updateGroupHint();
     $("#wishlistDialog").close();
-    if (state.group === "gds" && !$("#view-chart").hidden) renderChart();
+    if ($("#view-table").hidden) renderChart();
+    else renderPosts();
   });
 }
 
@@ -683,7 +684,7 @@ function renderPosts() {
     pourvu: "pourvus",
   };
   $("#tally").innerHTML = Object.entries(data.summary)
-    .filter(([k, v]) => v > 0 && (state.rank || state.wishlist.length || k === "libre" || k === "pourvu"))
+    .filter(([k, v]) => v > 0 && (state.wishlist.length || k === "libre" || k === "pourvu"))
     .map(([k, v]) => {
       const on = state.statusFilter.has(k);
       return `<button type="button" class="chip${on ? " chip-on" : ""}" data-k="${k}" aria-pressed="${on}">
@@ -724,7 +725,7 @@ function renderTable(ceiling) {
   });
 
   const maxUsedRank = rows.reduce((m, p) => Math.max(m, p.rank_used || 0), 0);
-  const scale = Math.max(ceiling || 1, state.rank || 1, maxUsedRank);
+  const scale = Math.max(ceiling || 1, maxUsedRank || 1);
   const pct = (v) => Math.min(100, (v / scale) * 100);
 
   $("#posts").tBodies[0].innerHTML = rows
@@ -1047,7 +1048,6 @@ async function boot() {
   updateChecklistVisibility("subdivision");
   updateChecklistVisibility("specialite");
 
-  $("#rank").value = state.rank ?? "";
   $("#margin").value = state.margin;
   $("#marginOut").value = state.margin;
   $("#marginK").value = state.marginK;
@@ -1060,11 +1060,6 @@ async function boot() {
   $("#group").value = state.group;
   updateGroupHint();
 
-  $("#rank").addEventListener("input", (e) => {
-    const v = parseInt(e.target.value, 10);
-    state.rank = Number.isFinite(v) && v > 0 ? v : null;
-    refresh();
-  });
   sel.addEventListener("change", (e) => { state.round = Number(e.target.value); refresh(); });
   $("#margin").addEventListener("input", (e) => {
     state.margin = Number(e.target.value);

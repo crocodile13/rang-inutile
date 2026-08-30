@@ -90,20 +90,7 @@ th[data-sort]:focus-visible,
 .bar h1 { font-size: 18px; letter-spacing: 0.06em; text-transform: uppercase; }
 .bar-sub { margin: 3px 0 0; font-size: 13px; color: #93a3ae; font-family: var(--sans); }
 
-.rank-field { display: flex; align-items: baseline; gap: 12px; }
-.rank-field label { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93a3ae; }
-
-.rank-field input {
-  width: 150px;
-  padding: 9px 12px;
-  font: 600 24px var(--mono);
-  font-variant-numeric: tabular-nums;
-  color: var(--panel);
-  background: #1c2833;
-  border: 1px solid #3c4c58;
-  border-radius: 4px;
-}
-.rank-field input:focus-visible { outline: 3px solid #9fd0e4; outline-offset: 2px; }
+.round-info { display: flex; align-items: baseline; }
 .rank-hint { font-size: 13px; color: #7f8f9b; }
 
 /* ---------- structure ---------- */
@@ -586,13 +573,11 @@ tr[data-status="pris"] td { color: #8695a0; }
   .ruler-col { display: none; }
   tbody td:last-child { display: none; }
   .bar { padding: 14px 16px; }
-  .rank-field input { width: 120px; font-size: 20px; }
 }
 
 @media (max-width: 560px) {
   html { font-size: 15px; }
   .bar { flex-direction: column; align-items: flex-start; }
-  .rank-field { width: 100%; justify-content: space-between; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
