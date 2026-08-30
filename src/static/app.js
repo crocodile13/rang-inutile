@@ -783,7 +783,14 @@ const PALETTE = [
 
 function updateGroupHint() {
   const hint = $("#groupHint");
-  if (state.group === "poste") {
+  const singlePoste = state.subdivision.size === 1 && state.specialite.size === 1;
+  if (state.metric === "classement" && singlePoste) {
+    // Avec une seule ville + une seule spécialité, il n'existe qu'un seul poste : une valeur
+    // unique par tour, donc médiane = Q1 = Q3 = min = max — pas une bande qui a disparu, juste
+    // rien à comparer. Sans ce message, la ligne plate ressemble à un graphique cassé.
+    hint.hidden = false;
+    hint.textContent = "Une seule ville et une seule spécialité cochées : un seul poste, donc une valeur unique par tour — pas de médiane/quartiles/min-max à calculer (rien à comparer). Coche plusieurs villes ou spécialités pour voir la dispersion.";
+  } else if (state.group === "poste") {
     hint.hidden = false;
     hint.textContent = "Coche des spécialités et des villes dans le panneau de gauche : chaque combinaison cochée devient sa propre courbe (ex. Médecine générale + APHM, Toulouse → 2 courbes).";
   } else if (state.group === "gds" && state.wishlist.length) {
@@ -798,6 +805,7 @@ function updateGroupHint() {
 }
 
 function renderChart() {
+  updateGroupHint();
   const data = computeEvolution(state.metric, state.group);
   data.series = applyWishlist(data.series);
   drawChart(data);
