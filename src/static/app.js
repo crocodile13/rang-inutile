@@ -718,8 +718,24 @@ function renderPosts() {
     pris: "hors d'atteinte",
     pourvu: "pourvus",
   };
-  $("#tally").innerHTML = Object.entries(data.summary)
-    .filter(([k, v]) => v > 0 && (state.wishlist.length || k === "libre" || k === "pourvu"))
+  const chipEntries = Object.entries(data.summary)
+    .filter(([k, v]) => v > 0 && (state.wishlist.length || k === "libre" || k === "pourvu"));
+
+  // Purge les statuts filtrés qui n'ont plus de compteur affiché (ex. après avoir effacé les
+  // positionnements, "accessible" n'existe plus). Sans ça le tableau reste filtré sur un statut
+  // dont la puce a disparu : plus rien à cliquer pour l'enlever, et l'état est persisté en
+  // localStorage — l'impasse survit au rechargement.
+  let pruned = false;
+  const selectable = new Set(chipEntries.map(([k]) => k));
+  for (const k of [...state.statusFilter]) {
+    if (!selectable.has(k)) {
+      state.statusFilter.delete(k);
+      pruned = true;
+    }
+  }
+  if (pruned) save();
+
+  $("#tally").innerHTML = chipEntries
     .map(([k, v]) => {
       const on = state.statusFilter.has(k);
       return `<button type="button" class="chip${on ? " chip-on" : ""}" data-k="${k}" aria-pressed="${on}">
@@ -749,10 +765,19 @@ function renderTable(ceiling) {
     : lastPosts;
 
   const { key, dir } = state.sort;
-  rows.sort((a, b) => {
+  // `rows` peut être `lastPosts` lui-même (aucun filtre de statut) : on trie une copie pour ne
+  // pas réordonner l'état partagé au passage.
+  const sorted = [...rows];
+  sorted.sort((a, b) => {
+    const xNull = a[key] === null || a[key] === undefined;
+    const yNull = b[key] === null || b[key] === undefined;
+    // Les valeurs manquantes vont toujours en fin de liste, quel que soit le sens du tri — mais
+    // deux valeurs manquantes sont ex æquo : renvoyer 1 ici (comme avant) rendait le
+    // comparateur incohérent (a > b ET b > a), d'où un ordre imprévisible entre ces lignes.
+    if (xNull && yNull) return 0;
+    if (xNull) return 1;
+    if (yNull) return -1;
     const x = a[key], y = b[key];
-    if (x === null || x === undefined) return 1;
-    if (y === null || y === undefined) return -1;
     if (typeof x === "string") return dir * x.localeCompare(y, "fr");
     return dir * (x - y);
   });
@@ -762,11 +787,11 @@ function renderTable(ceiling) {
     th.classList.toggle("asc", th.dataset.sort === key && dir === 1);
   });
 
-  const maxUsedRank = rows.reduce((m, p) => Math.max(m, p.rank_used || 0), 0);
+  const maxUsedRank = sorted.reduce((m, p) => Math.max(m, p.rank_used || 0), 0);
   const scale = Math.max(ceiling || 1, maxUsedRank || 1);
   const pct = (v) => Math.min(100, (v / scale) * 100);
 
-  $("#posts").tBodies[0].innerHTML = rows
+  $("#posts").tBodies[0].innerHTML = sorted
     .map((p) => {
       let ruler;
       if (p.rang_min === null) {
@@ -801,10 +826,14 @@ function renderTable(ceiling) {
     })
     .join("");
 
-  $("#count").textContent = `${rows.length} ligne${rows.length > 1 ? "s" : ""}`;
+  $("#count").textContent = `${sorted.length} ligne${sorted.length > 1 ? "s" : ""}`;
   const empty = $("#tableEmpty");
-  empty.hidden = rows.length > 0;
-  empty.textContent = "Aucun poste ne correspond. Élargis les villes ou les spécialités.";
+  empty.hidden = sorted.length > 0;
+  // Quand un filtre de statut est actif, dire d'élargir les villes/spécialités envoie sur une
+  // fausse piste : c'est le compteur cliqué qui vide le tableau.
+  empty.textContent = state.statusFilter.size
+    ? "Aucun poste avec ce statut. Reclique le compteur sélectionné pour enlever le filtre, ou élargis les villes/spécialités."
+    : "Aucun poste ne correspond. Élargis les villes ou les spécialités.";
 }
 
 /* ------------------------------------------------------------ graphique -- */
@@ -886,11 +915,18 @@ function drawChart(data) {
 
   if (!data.rounds.length || !shown.length) {
     host.innerHTML = "";
-    $("#legend").innerHTML = "";
+    // On garde la légende quand des courbes existent mais sont toutes masquées : la vider
+    // supprimerait le seul moyen de les réafficher (et `state.hidden` est persisté, donc
+    // l'impasse survivrait au rechargement).
+    renderLegend(data.series);
     empty.hidden = false;
-    empty.textContent = data.rounds.length
-      ? "Rien à tracer avec cette sélection."
-      : "Aucun tour chargé. Lance fetch_appariement.sh puis recharge.";
+    if (!data.rounds.length) {
+      empty.textContent = "Aucun tour chargé. Lance fetch_appariement.sh puis recharge.";
+    } else if (data.series.length) {
+      empty.textContent = "Toutes les courbes sont masquées — clique une entrée de la légende ci-dessus pour en réafficher une.";
+    } else {
+      empty.textContent = "Rien à tracer avec cette sélection.";
+    }
     return;
   }
   empty.hidden = true;
