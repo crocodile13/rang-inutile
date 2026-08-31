@@ -17,6 +17,7 @@ const state = {
   showAllSpecialites: false,
   metric: "classement",
   group: "none",
+  viewMode: "cumule", // "cumule" (total) ou "individuel" (médiane/quartiles/min-max par poste)
   sort: { key: "rang_max", dir: -1 },
   hidden: new Set(),
   wishlist: [],
@@ -270,6 +271,20 @@ const METRICS = {
   postes: "Postes au total",
 };
 
+// "Places restantes" et "Places accessibles" ont une vraie valeur par poste (son nombre de
+// places) : basculable entre le total cumulé sur le groupe et la distribution (médiane/quartiles/
+// min-max) de cette valeur entre les postes du groupe. "Postes accessibles"/"Postes au total" sont
+// de purs comptages (un poste est présent ou pas, il n'a pas de grandeur à distribuer) — pas de
+// vue individuelle pour eux.
+const INDIVIDUAL_CAPABLE = new Set(["restantes", "places_accessibles"]);
+
+function metricLabel(metric, viewMode) {
+  if (INDIVIDUAL_CAPABLE.has(metric) && viewMode === "individuel") {
+    return metric === "restantes" ? "Places restantes par poste" : "Places accessibles par poste";
+  }
+  return METRICS[metric];
+}
+
 const MAX_SERIES = 40; // garde-fou d'affichage : au-delà, le graphique devient illisible
 
 function bucketName(post, groupBy) {
@@ -291,12 +306,24 @@ function computeEvolution(metric, groupBy) {
     }
   }
 
+  const individuel = state.viewMode === "individuel";
+
   function computePoint(posts) {
     if (metric === "postes") return { value: posts.length };
-    if (metric === "restantes") return { value: posts.reduce((s, p) => s + p.restantes, 0) };
+    if (metric === "restantes") {
+      if (individuel) {
+        const stats = rankStats(posts.map((p) => p.restantes));
+        return stats ? { value: stats.median, stats } : null;
+      }
+      return { value: posts.reduce((s, p) => s + p.restantes, 0) };
+    }
     if (metric === "accessibles" || metric === "places_accessibles") {
       const open = posts.filter((p) => OPEN_STATUSES.has(statusOf(p, effectiveRank(p), effectiveMargin(p))));
       if (metric === "accessibles") return { value: open.length };
+      if (individuel) {
+        const stats = rankStats(open.map((p) => (p.restantes > 0 ? p.restantes : p.places)));
+        return stats ? { value: stats.median, stats } : null;
+      }
       return { value: open.reduce((s, p) => s + (p.restantes > 0 ? p.restantes : p.places), 0) };
     }
     // Population = le rang de CHAQUE candidat admis sur les postes du groupe ce tour-là (un
@@ -327,7 +354,7 @@ function computeEvolution(metric, groupBy) {
   });
   const truncated = series.length > MAX_SERIES;
   if (truncated) series = series.slice(0, MAX_SERIES);
-  return { rounds: meta.rounds, series, metric, metric_label: METRICS[metric], group: groupBy, truncated };
+  return { rounds: meta.rounds, series, metric, metric_label: metricLabel(metric, state.viewMode), group: groupBy, truncated };
 }
 
 /* --------------------------------------------------------------- filtres -- */
@@ -801,8 +828,22 @@ function updateGroupHint() {
   }
 }
 
+function updateViewModeVisibility() {
+  const toggle = $("#viewModeToggle");
+  const capable = INDIVIDUAL_CAPABLE.has(state.metric);
+  toggle.hidden = !capable;
+  if (!capable && state.viewMode === "individuel") {
+    // Le toggle n'a de sens que pour restantes/places_accessibles : repartir du cumulé sur les
+    // autres mesures évite qu'un choix fait sur l'une reste appliqué silencieusement à l'autre.
+    state.viewMode = "cumule";
+    $("#viewModeCheckbox").checked = false;
+    save();
+  }
+}
+
 function renderChart() {
   updateGroupHint();
+  updateViewModeVisibility();
   const data = computeEvolution(state.metric, state.group);
   data.series = applyWishlist(data.series);
   drawChart(data);
@@ -819,17 +860,24 @@ function drawChart(data) {
     truncNote.textContent = `Affichage limité aux ${data.series.length} courbes les plus marquantes — affine les villes/spécialités cochées pour voir le reste.`;
   }
 
-  const hasStats = data.metric === "classement";
+  const individuelView = INDIVIDUAL_CAPABLE.has(data.metric) && state.viewMode === "individuel";
+  const hasStats = data.metric === "classement" || individuelView;
   const hasSpread = shown.some((s) => s.points.some((p) => p.stats && p.stats.min !== p.stats.max));
   $("#statsLegend").hidden = !(hasStats && hasSpread);
+  if (hasStats && hasSpread) {
+    $("#statsLegend").textContent = individuelView
+      ? "Zone = écart interquartile (Q1–Q3) · trait plein = médiane · barres = min–max, calculés sur le nombre de places de chaque poste du groupe."
+      : "Zone = écart interquartile (Q1–Q3) · trait plein = médiane · barres = min–max, calculés sur le rang de chaque candidat admis sur les postes du groupe.";
+  }
 
   const sampleNote = $("#chartSampleNote");
   if (sampleNote) {
     const hasAnyPoint = shown.some((s) => s.points.some((p) => p.value !== null));
     sampleNote.hidden = !(hasStats && hasAnyPoint && !hasSpread);
     if (!sampleNote.hidden) {
-      sampleNote.textContent =
-        "Aucune dispersion à afficher ici : sur les tours tracés, les postes de cette sélection n'ont jamais eu plus d'un candidat admis en même temps — pas assez de monde pour calculer une médiane/quartiles/min-max. Coche plus de villes ou de spécialités pour élargir l'échantillon.";
+      sampleNote.textContent = individuelView
+        ? "Aucune dispersion à afficher ici : sur les tours tracés, les postes de cette sélection avaient tous le même nombre de places (ou un seul poste au total) — rien à comparer. Coche plus de villes ou de spécialités pour élargir l'échantillon."
+        : "Aucune dispersion à afficher ici : sur les tours tracés, les postes de cette sélection n'ont jamais eu plus d'un candidat admis en même temps — pas assez de monde pour calculer une médiane/quartiles/min-max. Coche plus de villes ou de spécialités pour élargir l'échantillon.";
     }
   }
 
@@ -1076,7 +1124,9 @@ async function boot() {
   wireWishlist();
   $("#metric").value = state.metric;
   $("#group").value = state.group;
+  $("#viewModeCheckbox").checked = state.viewMode === "individuel";
   updateGroupHint();
+  updateViewModeVisibility();
 
   sel.addEventListener("change", (e) => { state.round = Number(e.target.value); refresh(); });
   $("#margin").addEventListener("input", (e) => {
@@ -1084,7 +1134,15 @@ async function boot() {
     $("#marginOut").value = state.margin;
     refresh();
   });
-  $("#metric").addEventListener("change", (e) => { state.metric = e.target.value; refresh(); });
+  $("#metric").addEventListener("change", (e) => {
+    state.metric = e.target.value;
+    updateViewModeVisibility();
+    refresh();
+  });
+  $("#viewModeCheckbox").addEventListener("change", (e) => {
+    state.viewMode = e.target.checked ? "individuel" : "cumule";
+    refresh();
+  });
   $("#group").addEventListener("change", (e) => {
     state.group = e.target.value;
     state.hidden.clear();

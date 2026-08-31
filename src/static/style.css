@@ -513,6 +513,8 @@ tr[data-status="pris"] td { color: #8695a0; }
 .chart-tools { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 16px; }
 .chart-tools label { display: flex; align-items: center; gap: 9px; font-size: 12.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
 .chart-tools .select { width: auto; min-width: 210px; }
+.chart-tools label[hidden] { display: none; }
+#viewModeToggle { text-transform: none; letter-spacing: normal; cursor: pointer; }
 
 .chart { width: 100%; background: #fff; border: 1px solid var(--rule-soft); border-radius: 4px; }
 .chart svg { display: block; width: 100%; height: auto; }
