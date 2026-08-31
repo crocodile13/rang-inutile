@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Appariement — ce que ton rang ouvre</title>
+<title>Appariement — ce que tes positionnements ouvrent</title>
 <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
@@ -20,7 +20,7 @@
     <span class="bar-mark" aria-hidden="true">R</span>
     <div>
       <h1>Appariement</h1>
-      <p class="bar-sub">Ce qu'un rang ouvre, tour par tour</p>
+      <p class="bar-sub">Ce que tes positionnements ouvrent, tour par tour</p>
     </div>
   </div>
   <div class="round-info">
@@ -89,30 +89,6 @@
       </div>
     </div>
 
-    <div class="filter-block">
-      <div class="filter-head"><h2>Marge « limite »</h2></div>
-      <label class="toggle small">
-        <input type="checkbox" id="autoMargin">
-        Marge statistique (auto)
-      </label>
-
-      <div id="manualMarginRow" class="margin-row">
-        <input id="margin" type="range" min="0" max="1000" step="25" value="150">
-        <output id="marginOut">150</output>
-      </div>
-      <p class="note" id="manualMarginNote">Un poste passe en <em>limite</em> si ton classement (renseigné dans « Mes positionnements ») dépasse le dernier rang pris de moins que cette marge.</p>
-
-      <div id="autoMarginRow" class="margin-row" hidden>
-        <input id="marginK" type="range" min="0" max="3" step="0.1" value="1">
-        <output id="marginKOut">1,0×</output>
-      </div>
-      <p class="note" id="autoMarginNote" hidden>
-        Marge = sensibilité × écart-type des <em>variations tour-à-tour</em> du dernier rang pris par ce poste précis (pas l'écart-type des niveaux bruts, qui confondrait avec la tendance générale de la simulation).
-        Un poste dont le seuil bouge beaucoup d'un tour au suivant reçoit une marge plus large ; un poste stable, une marge plus fine.
-        Repli sur la marge manuelle si le poste a moins de 3 tours d'historique.
-      </p>
-    </div>
-
     <div class="filter-block" id="wishlistBlock">
       <div class="filter-head">
         <h2>Mes positionnements (groupes)</h2>
@@ -131,6 +107,30 @@
         <p class="note">Ton classement diffère selon le groupe de spécialités (l'algorithme d'appariement calcule un classement par groupe, pas un seul rang global — voir l'onglet « Mes positionnements » sur EVEN). Renseigne-le ici pour que chaque poste utilise le bon classement automatiquement.</p>
         <button type="button" id="wishlistOpen" class="btn">Renseigner mes positionnements</button>
       </div>
+    </div>
+
+    <div class="filter-block">
+      <div class="filter-head"><h2>Marge « limite »</h2></div>
+      <label class="toggle small">
+        <input type="checkbox" id="autoMargin">
+        Marge statistique (auto)
+      </label>
+
+      <div id="manualMarginRow" class="margin-row">
+        <input id="margin" type="range" min="0" max="1000" step="25" value="150">
+        <output id="marginOut">150</output>
+      </div>
+      <p class="note" id="manualMarginNote">Un poste passe en <em>limite</em> si ton classement (renseigné dans « Mes positionnements » ci-dessus) dépasse le dernier rang pris de moins que cette marge.</p>
+
+      <div id="autoMarginRow" class="margin-row" hidden>
+        <input id="marginK" type="range" min="0" max="3" step="0.1" value="1">
+        <output id="marginKOut">1,0×</output>
+      </div>
+      <p class="note" id="autoMarginNote" hidden>
+        Marge = sensibilité × écart-type des <em>variations tour-à-tour</em> du dernier rang pris par ce poste précis (pas l'écart-type des niveaux bruts, qui confondrait avec la tendance générale de la simulation).
+        Un poste dont le seuil bouge beaucoup d'un tour au suivant reçoit une marge plus large ; un poste stable, une marge plus fine.
+        Repli sur la marge manuelle si le poste a moins de 3 tours d'historique.
+      </p>
     </div>
   </aside>
 
