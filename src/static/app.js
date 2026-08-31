@@ -734,6 +734,9 @@ function renderPosts() {
       renderPosts();
     })
   );
+  $("#tallyHint").textContent = state.wishlist.length
+    ? "Clique un compteur pour filtrer le tableau sur ce statut (plusieurs à la fois possible)."
+    : "Clique un compteur pour filtrer le tableau sur ce statut. Renseigne tes positionnements (panneau de gauche) pour voir apparaître accessible / limite / hors d'atteinte.";
 
   lastPosts = data.posts;
   lastCeiling = data.rank_ceiling;
