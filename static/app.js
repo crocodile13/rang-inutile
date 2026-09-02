@@ -23,9 +23,10 @@ const state = {
   wishlist: [],
 };
 
-let meta = { rounds: [], round_labels: {}, subdivisions: [], specialites: [], gds: [] };
+let meta = { rounds: [], round_labels: {}, round_short_labels: {}, subdivisions: [], specialites: [], gds: [] };
 let ALL_POSTS = [];
 let byRound = new Map();
+let fermesByRound = new Map(); // tour -> nb de postes à 0 place, écartés de byRound
 let rankHistory = new Map();
 let lastPosts = [];
 let lastCeiling = 0;
@@ -74,8 +75,19 @@ function restore() {
 }
 
 let timer = null;
+// Le sélecteur de tour vit dans la sidebar, visible sur les deux onglets : la note doit donc
+// suivre le tour choisi et pas seulement l'état du boot (elle restait figée sur le tour initial).
+function updateRoundNote() {
+  const ouverts = (byRound.get(state.round) || []).length;
+  const fermes = fermesByRound.get(state.round) || 0;
+  $("#roundNote").textContent =
+    `${meta.rounds.length} tour(s) chargé(s) — ${fmt(ouverts)} postes ouverts pour : ${roundLabel(state.round)}` +
+    (fermes ? ` (${fmt(fermes)} sans aucune place ouverte, non affichés).` : ".");
+}
+
 function refresh() {
   save();
+  updateRoundNote();
   clearTimeout(timer);
   timer = setTimeout(() => {
     if ($("#view-table").hidden) renderChart();
@@ -116,6 +128,11 @@ function roundLabel(r) {
 }
 
 function roundShortLabel(r) {
+  // Libellé court explicite fourni par le build : il doit rester unique d'une phase à l'autre,
+  // le graphique traçant désormais plusieurs phases côte à côte (sans ça, "Simulation — Tour 1"
+  // et "Tours à blanc — Tour 1" produisaient deux graduations "Tour 1" indiscernables).
+  const short = meta.round_short_labels[r];
+  if (short) return short;
   const full = roundLabel(r);
   const parts = full.split("—");
   return (parts[1] || parts[0]).trim();
@@ -1089,14 +1106,28 @@ function indexData(bulk) {
   meta = {
     rounds: bulk.rounds,
     round_labels: bulk.round_labels,
+    round_short_labels: bulk.round_short_labels || {},
     subdivisions: bulk.subdivisions,
     specialites: bulk.specialites,
     gds: bulk.gds,
   };
   ALL_POSTS = bulk.posts;
   byRound = new Map(meta.rounds.map((r) => [r, []]));
+  fermesByRound = new Map(meta.rounds.map((r) => [r, 0]));
   for (const post of ALL_POSTS) {
-    if (byRound.has(post.round)) byRound.get(post.round).push(post);
+    if (!byRound.has(post.round)) continue;
+    // `places === 0` = aucune capacité ouverte sur ce poste à ce tour. Le CNG renvoie le produit
+    // cartésien complet (spécialité × subdivision), y compris les couples qui n'ouvrent aucune
+    // place cette campagne. Les laisser passer les faisait remonter en "libre" (rang_max === null
+    // → statusOf renvoie "libre"), jusqu'à 59 % du compteur "libres" au dernier tour, gonflait
+    // "Postes au total"/"Postes accessibles" du graphique et tirait vers 0 les médianes de places
+    // en vue individuelle. On les écarte ici : tout ce qui lit byRound (tableau, compteurs,
+    // évolution, historique des rangs) est corrigé d'un coup.
+    if (post.places <= 0) {
+      fermesByRound.set(post.round, fermesByRound.get(post.round) + 1);
+      continue;
+    }
+    byRound.get(post.round).push(post);
   }
   rankHistory = buildRankHistory(meta.rounds);
 
@@ -1138,9 +1169,16 @@ async function boot() {
 
   const sel = $("#round");
   sel.innerHTML = meta.rounds.map((r) => `<option value="${r}">${esc(roundLabel(r))}</option>`).join("");
-  if (!meta.rounds.includes(state.round)) state.round = meta.rounds.at(-1);
+  // Défaut = dernier tour DÉJÀ apparié, pas simplement le dernier chargé : le CNG publie la
+  // liste des postes d'un tour dès son ouverture, avant de faire tourner l'appariement (0
+  // attribution, tout "libre"). Atterrir dessus au premier chargement ne montrerait rien.
+  // Le tour vide reste sélectionnable dans la liste, et un choix déjà mémorisé est respecté.
+  if (!meta.rounds.includes(state.round)) {
+    const apparies = meta.rounds.filter((r) => (byRound.get(r) || []).some((p) => p.attribuees > 0));
+    state.round = apparies.at(-1) ?? meta.rounds.at(-1);
+  }
   sel.value = state.round;
-  $("#roundNote").textContent = `${meta.rounds.length} tour(s) chargé(s) — ${(byRound.get(state.round) || []).length} postes pour : ${roundLabel(state.round)}.`;
+  updateRoundNote();
 
   buildChecklist("subdivision", meta.subdivisions);
   buildChecklist("specialite", meta.specialites);
