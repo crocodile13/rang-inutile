@@ -977,8 +977,16 @@ function drawChart(data) {
   }
   svg += `<line class="axis-line" x1="${pad.l}" y1="${pad.t + ih}" x2="${W - pad.r}" y2="${pad.t + ih}"/>`;
 
+  // Les graduations extrêmes touchent le bord du viewBox : un libellé centré dessus en sort et
+  // se fait rogner dès qu'il s'allonge ("Blanc T2" déborde là où "Tour 4" passait tout juste).
+  // On le ramène dans le cadre. La largeur est estimable de façon fiable, la police de l'axe
+  // étant monospace (--mono, 12px) — mesurer le SVG obligerait à un rendu intermédiaire.
+  const AXIS_CHAR_W = 7.3;
   for (const r of rounds) {
-    svg += `<text class="axis-text" x="${xs(r)}" y="${pad.t + ih + 18}" text-anchor="middle">${esc(roundShortLabel(r))}</text>`;
+    const label = roundShortLabel(r);
+    const half = (label.length * AXIS_CHAR_W) / 2;
+    const x = Math.min(Math.max(xs(r), half + 2), W - half - 2);
+    svg += `<text class="axis-text" x="${x}" y="${pad.t + ih + 18}" text-anchor="middle">${esc(label)}</text>`;
   }
   svg += `<text class="axis-title" x="${W / 2}" y="${H - 8}" text-anchor="middle">TOUR</text>`;
   svg += `<text class="axis-title" x="14" y="${pad.t + ih / 2}" text-anchor="middle" transform="rotate(-90 14 ${pad.t + ih / 2})">${esc(data.metric_label.toUpperCase())}</text>`;
