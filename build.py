@@ -10,6 +10,7 @@ par n'importe quel hébergeur de fichiers statiques ou même `python3 -m http.se
 import argparse
 import csv
 import glob
+import hashlib
 import json
 import os
 import re
@@ -153,6 +154,12 @@ def build_bulk(rounds: dict[int, list[Post]]) -> dict:
     }
 
 
+def _digest(path: str) -> str:
+    """Empreinte courte du contenu d'un fichier, pour versionner son URL."""
+    with open(path, "rb") as handle:
+        return hashlib.sha256(handle.read()).hexdigest()[:10]
+
+
 def build(data_dir: str, out_dir: str) -> None:
     rounds = load_dir(data_dir)
     if not rounds:
@@ -164,11 +171,28 @@ def build(data_dir: str, out_dir: str) -> None:
     with open(os.path.join(out_dir, "data.json"), "w", encoding="utf-8") as f:
         json.dump(bulk, f, ensure_ascii=False, separators=(",", ":"))
 
-    shutil.copy("src/index.html", os.path.join(out_dir, "index.html"))
     dest_static = os.path.join(out_dir, "static")
     if os.path.isdir(dest_static):
         shutil.rmtree(dest_static)
     shutil.copytree("src/static", dest_static)
+
+    # GitHub Pages sert tout en "cache-control: max-age=600" et ne permet pas de le changer.
+    # Sans versionnement, index.html, app.js et data.json expirent CHACUN de leur côté : après
+    # un déploiement un visiteur peut se retrouver avec un app.js neuf et un data.json périmé
+    # (ou l'inverse) pendant dix minutes. On accroche donc l'empreinte du contenu à chaque URL
+    # depuis le HTML : dès qu'index.html est rafraîchi, il tire forcément les versions qui vont
+    # avec, et un fichier inchangé garde son URL donc reste en cache.
+    html = open("src/index.html", encoding="utf-8").read()
+    for asset in ("static/style.css", "static/app.js"):
+        html = html.replace(f'"{asset}"', f'"{asset}?v={_digest(os.path.join(out_dir, asset))}"')
+    data_url = f"data.json?v={_digest(os.path.join(out_dir, 'data.json'))}"
+    # app.js retombe sur "data.json" si ce global est absent (ouverture directe de src/).
+    html = html.replace(
+        '<script src="static/app.js',
+        f'<script>window.__DATA_URL = "{data_url}";</script>\n<script src="static/app.js',
+    )
+    with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
+        f.write(html)
 
     n_posts = len(bulk["posts"])
     print(f"site généré dans {out_dir}/ — {len(rounds)} tour(s) visible(s), {n_posts} postes.")
