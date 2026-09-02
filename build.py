@@ -21,20 +21,36 @@ FILE_RE = re.compile(r"appariement_r(\d+)\.csv$")
 
 # Étiquettes lisibles pour les rounds bruts de l'API CNG. La numérotation CNG est continue à
 # travers les phases (round 6, 7, 8...), alors qu'EVEN redémarre à "Tour 1" à chaque phase — les
-# deux ne coïncident pas. Rounds 1-5 : phase antérieure non pertinente pour cette campagne, on
-# les masque entièrement. À METTRE À JOUR quand une nouvelle phase démarre (Tours à Blanc,
-# Phase Définitive) : ajoute les rounds correspondants ici.
+# deux ne coïncident pas, d'où cette table. Rounds 1-5 : phase antérieure non pertinente pour
+# cette campagne, on les masque entièrement. À METTRE À JOUR quand une nouvelle phase démarre
+# (Phase Définitive) : ajoute une ligne à PHASES avec ses rounds.
+#
+# Chaque phase porte un libellé long (sélecteur de tour, infobulle) et un libellé court unique
+# pour l'axe du graphique. Le court doit rester distinct d'une phase à l'autre : l'évolution
+# trace maintenant plusieurs phases côte à côte, et "Tour 1" tout court y apparaîtrait deux fois.
 HIDDEN_ROUNDS = {1, 2, 3, 4, 5}
+PHASES = [
+    ("Simulation", "Sim.", [6, 7, 8, 9]),
+    ("Tours à blanc", "Blanc", [10, 11]),
+]
 ROUND_LABELS = {
-    6: "Simulation — Tour 1",
-    7: "Simulation — Tour 2",
-    8: "Simulation — Tour 3",
-    9: "Simulation — Tour 4",
+    rnd: f"{long} — Tour {i}"
+    for long, _, rounds in PHASES
+    for i, rnd in enumerate(rounds, start=1)
+}
+ROUND_SHORT_LABELS = {
+    rnd: f"{court} T{i}"
+    for _, court, rounds in PHASES
+    for i, rnd in enumerate(rounds, start=1)
 }
 
 
 def round_label(n: int) -> str:
     return ROUND_LABELS.get(n, f"Tour {n} (à étiqueter)")
+
+
+def round_short_label(n: int) -> str:
+    return ROUND_SHORT_LABELS.get(n, f"T{n}")
 
 
 @dataclass
@@ -121,12 +137,18 @@ def build_bulk(rounds: dict[int, list[Post]]) -> dict:
         for r in sorted(rounds)
         for post in rounds[r]
     ]
+    # Listes des filtres : seuls les postes ayant ouvert au moins une place sur au moins un tour
+    # comptent comme existants. Le CNG renvoie le produit cartésien complet spécialité ×
+    # subdivision, donc une entrée qui n'apparaît que sur des lignes à 0 place n'est pas une
+    # option réelle — la proposer dans les cases à cocher n'aboutirait qu'à un tableau vide.
+    ouverts = [p for p in posts if p["places"] > 0]
     return {
         "rounds": sorted(rounds),
         "round_labels": {str(r): round_label(r) for r in sorted(rounds)},
-        "subdivisions": sorted({p["subdivision"] for p in posts if p["subdivision"]}),
-        "specialites": sorted({p["specialite"] for p in posts if p["specialite"]}),
-        "gds": sorted({p["gds"] for p in posts if p["gds"]}),
+        "round_short_labels": {str(r): round_short_label(r) for r in sorted(rounds)},
+        "subdivisions": sorted({p["subdivision"] for p in ouverts if p["subdivision"]}),
+        "specialites": sorted({p["specialite"] for p in ouverts if p["specialite"]}),
+        "gds": sorted({p["gds"] for p in ouverts if p["gds"]}),
         "posts": posts,
     }
 
