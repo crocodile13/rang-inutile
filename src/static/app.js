@@ -486,9 +486,18 @@ function wireDropdowns() {
   const dropdowns = [...document.querySelectorAll(".dropdown")];
   const closeAll = (except) => {
     dropdowns.forEach((d) => {
-      if (d !== except) {
-        d.classList.remove("open");
-        d.querySelector(".dropdown-trigger")?.setAttribute("aria-expanded", "false");
+      if (d === except) return;
+      d.classList.remove("open");
+      d.querySelector(".dropdown-trigger")?.setAttribute("aria-expanded", "false");
+      // Le champ de recherche vit DANS le menu déroulant, alors que "tout"/"rien" sont dehors
+      // et n'agissent que sur les lignes visibles. Un filtre resté actif dans un menu fermé
+      // restreignait donc "tout" à un sous-ensemble, sans plus rien à l'écran pour l'expliquer.
+      // On vide la recherche à la fermeture : tant que le menu est ouvert, "tout" continue de
+      // porter sur ce qu'on voit — une fois fermé, il porte sur toute la liste.
+      const search = d.querySelector("[data-search]");
+      if (search && search.value) {
+        search.value = "";
+        updateChecklistVisibility(search.dataset.search);
       }
     });
   };

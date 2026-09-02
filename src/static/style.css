@@ -596,3 +596,7 @@ tr[data-status="pris"] td { color: #8695a0; }
 }
 .site-footer a { color: var(--muted); text-decoration: none; }
 .site-footer a:hover { color: var(--accent); text-decoration: underline; }
+
+/* Année de campagne dans le titre : présente mais discrète, elle date le document sans
+   concurrencer le nom du site. */
+.bar-year { color: var(--muted); font-weight: 500; }

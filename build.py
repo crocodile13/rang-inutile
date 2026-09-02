@@ -32,7 +32,7 @@ FILE_RE = re.compile(r"appariement_r(\d+)\.csv$")
 HIDDEN_ROUNDS = {1, 2, 3, 4, 5}
 PHASES = [
     ("Simulation", "Sim.", [6, 7, 8, 9]),
-    ("Tours à blanc", "Blanc", [10, 11]),
+    ("Tours à blanc", "Blanc", [10, 11, 12]),
 ]
 ROUND_LABELS = {
     rnd: f"{long} — Tour {i}"
