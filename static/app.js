@@ -1183,7 +1183,10 @@ async function boot() {
   restore();
   let bulk;
   try {
-    bulk = await fetchJSON("data.json");
+    // URL versionnée injectée par build.py (voir _digest) : elle garantit qu'un index.html
+    // fraîchement chargé tire le data.json de son propre déploiement, et pas une version
+    // encore en cache. Repli sur le chemin nu si la page est ouverte sans passer par le build.
+    bulk = await fetchJSON(window.__DATA_URL || "data.json");
   } catch (e) {
     $("#bootLoadingText").textContent = "Échec du chargement : " + e.message;
     $(".boot-spinner")?.remove();
