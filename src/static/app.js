@@ -242,14 +242,12 @@ function computePosts(round) {
   const posts = byRound.get(round) || [];
   const rows = [];
   const summary = { libre: 0, accessible: 0, limite: 0, pris: 0, pourvu: 0 };
-  let placesOpen = 0;
   for (const post of posts) {
     if (!matchesFilters(post, state.subdivision, state.specialite, EMPTY_SET)) continue;
     const rank = effectiveRank(post);
     const margin = effectiveMargin(post);
     const status = statusOf(post, rank, margin);
     summary[status]++;
-    if (OPEN_STATUSES.has(status)) placesOpen += status === "libre" ? post.restantes : post.places;
     let marge = null;
     if (rank !== null && post.rang_max !== null) marge = post.rang_max - rank;
     rows.push({
@@ -275,7 +273,6 @@ function computePosts(round) {
     posts: rows,
     summary,
     total: rows.length,
-    places_open: placesOpen,
     rank_ceiling: allRanks.length ? Math.max(...allRanks) : 0,
   };
 }
@@ -953,7 +950,19 @@ function drawChart(data) {
   const iw = W - pad.l - pad.r;
   const ih = H - pad.t - pad.b;
 
-  const rounds = data.rounds;
+  // Un tour où aucune courbe affichée n'a de valeur réservait quand même sa colonne : le CNG
+  // publie les postes d'un tour dès son ouverture, avant l'appariement, donc le dernier tour
+  // n'a souvent aucun admis à tracer. On obtenait un cinquième de la largeur vide à droite et
+  // une courbe qui semblait tronquée. On rogne ces tours aux extrémités seulement — un trou au
+  // milieu reste affiché, lui : c'est une information, pas du vide de bout de série.
+  const roundsWithData = new Set(
+    shown.flatMap((s) => s.points.filter((p) => p.value !== null).map((p) => p.round))
+  );
+  let lo = 0, hi = data.rounds.length - 1;
+  while (lo <= hi && !roundsWithData.has(data.rounds[lo])) lo++;
+  while (hi >= lo && !roundsWithData.has(data.rounds[hi])) hi--;
+  const rounds = data.rounds.slice(lo, hi + 1);
+
   const xs = (r) =>
     pad.l + (rounds.length === 1 ? iw / 2 : (rounds.indexOf(r) / (rounds.length - 1)) * iw);
 
@@ -962,15 +971,14 @@ function drawChart(data) {
   ).filter((v) => v !== null && v !== undefined);
   const vmax = Math.max(...values, 1);
   const vmin = Math.min(...values, 0);
-  const top = niceCeil(vmax);
-  const bottom = vmin < 0 ? -niceCeil(-vmin) : 0;
+  const { bottom, top, step } = niceScale(vmin, vmax, 6);
   const ys = (v) => pad.t + ih - ((v - bottom) / (top - bottom || 1)) * ih;
 
-  const ticks = 5;
+  const ticks = Math.round((top - bottom) / step);
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(data.metric_label)} par tour">`;
 
   for (let i = 0; i <= ticks; i++) {
-    const v = bottom + ((top - bottom) * i) / ticks;
+    const v = bottom + step * i;
     const y = ys(v);
     svg += `<line class="grid-line" x1="${pad.l}" y1="${y}" x2="${W - pad.r}" y2="${y}"/>`;
     svg += `<text class="axis-text" x="${pad.l - 8}" y="${y + 3}" text-anchor="end">${shortNum(v)}</text>`;
@@ -1036,10 +1044,24 @@ function colorFor(key, all) {
   return PALETTE[all.findIndex((s) => s.key === key) % PALETTE.length];
 }
 
-function niceCeil(v) {
-  if (v <= 10) return Math.ceil(v);
-  const mag = 10 ** Math.floor(Math.log10(v));
-  return Math.ceil(v / (mag / 2)) * (mag / 2);
+// Échelle verticale : on choisit d'abord un PAS rond (1, 2, 2,5 ou 5 × 10^n) tel que la plage
+// tienne en `maxTicks` intervalles, puis on cale les bornes sur ce pas. L'ancienne version
+// arrondissait directement le maximum au demi-ordre de grandeur supérieur, ce qui laissait
+// jusqu'à la moitié de la hauteur vide : un maximum de 10 451 (le dernier rang classé) donnait
+// un axe gradué jusqu'à 15 000, données tassées dans le bas du cadre.
+const NICE_MANTISSAS = [1, 2, 2.5, 5, 10];
+
+function niceScale(vmin, vmax, maxTicks) {
+  const lo = Math.min(vmin, 0);
+  const mag = 10 ** Math.floor(Math.log10((vmax - lo) / maxTicks));
+  for (const m of NICE_MANTISSAS) {
+    const step = m * mag;
+    const bottom = Math.floor(lo / step) * step;
+    const top = Math.ceil(vmax / step) * step;
+    if (Math.round((top - bottom) / step) <= maxTicks) return { bottom, top, step };
+  }
+  const step = 10 * mag;
+  return { bottom: Math.floor(lo / step) * step, top: Math.ceil(vmax / step) * step, step };
 }
 
 function shortNum(v) {
